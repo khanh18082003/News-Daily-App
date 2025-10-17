@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.khanhnguyen1808.NewsDailyApp"
     },
     "web": {
       "output": "static",
@@ -38,11 +39,20 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "apiBaseUrlBE": "https://be-datn-production-2d10.up.railway.app",
+      "apiBaseUrlPredict": "http://52.198.6.187:8000",
+      "router": {},
+      "eas": {
+        "projectId": "fe5f3948-e39f-49c1-bef1-cf2f2803aa42"
+      }
     }
   }
 }
