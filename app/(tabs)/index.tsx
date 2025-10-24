@@ -3,9 +3,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -46,19 +48,10 @@ type PaginationNewsResponse = {
   meta: Meta;
 };
 
-function SectionHeader({
-  title,
-  onPressViewAll,
-}: {
-  title: string;
-  onPressViewAll?: () => void;
-}) {
+function SectionHeader({ title }: { title: string }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <Pressable onPress={onPressViewAll} hitSlop={8}>
-        <Text style={styles.linkText}>View All</Text>
-      </Pressable>
     </View>
   );
 }
@@ -154,74 +147,118 @@ function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
 export default function HomeScreen() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [newsList, setNewsList] = useState<PaginationNewsResponse | null>(null);
+  const [newsItems, setNewsItems] = useState<News[]>([]);
+  const [meta, setMeta] = useState<Meta | null>(null);
   const router = useRouter();
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const PAGE_SIZE = 2;
+
+  // Fetch topics on mount
   useEffect(() => {
     const fetchTopics = async () => {
       try {
         const data = await getAllTopics();
-
         setTopics(data);
       } catch (error) {
         console.error("Error fetching topics:", error);
       }
     };
-
-    const fetchNews = async () => {
-      try {
-        const data = await getNewsByTopic({ page: 1, pageSize: 10 });
-        console.log("Fetched news:", data);
-        setNewsList(data);
-      } catch (error) {
-        console.error("Error fetching news:", error);
-      }
-    };
-
-    fetchNews();
     fetchTopics();
   }, []);
 
+  // Fetch initial news
+  const fetchInitialNews = useCallback(async () => {
+    if (loading) return;
+
+    setLoading(true);
+    setCurrentPage(1);
+
+    try {
+      const params = selectedTopic
+        ? { topic: selectedTopic, page: 1, pageSize: PAGE_SIZE }
+        : { page: 1, pageSize: PAGE_SIZE };
+
+      const data = await getNewsByTopic(params);
+
+      setNewsItems(data.items);
+      setMeta(data.meta);
+    } catch (error) {
+      console.error("Error fetching news:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedTopic]);
+
+  // Fetch news when screen is focused or topic changes
   useFocusEffect(
     useCallback(() => {
-      let mounted = true;
-
-      const fetchNews = async () => {
-        try {
-          // If a topic is selected, fetch by that topic; otherwise default listing
-          const params = selectedTopic
-            ? { topic: selectedTopic, page: 1, pageSize: 10 }
-            : { page: 1, pageSize: 10 };
-          const data = await getNewsByTopic(params);
-          console.log("Fetched news on focus:", data);
-          if (!mounted) return;
-          setNewsList(data);
-        } catch (error) {
-          console.error("Error fetching news:", error);
-        }
-      };
-      fetchNews();
-
-      return () => {
-        mounted = false;
-      };
-    }, [selectedTopic])
+      fetchInitialNews();
+    }, [fetchInitialNews])
   );
 
+  // Handle topic selection
   const handleSelectTopic = async (label: string) => {
-    setSelectedTopic((prev) => (prev === label ? null : label));
-    const response = await getNewsByTopic({
-      topic: label,
-      page: 1,
-      pageSize: 10,
-    });
-    console.log("News by topic:", response);
-    setNewsList(response);
+    const newTopic = selectedTopic === label ? null : label;
+    setSelectedTopic(newTopic);
+    // fetchInitialNews will be triggered by useFocusEffect dependency
+  };
+
+  // Handle load more
+  const handleLoadMore = async () => {
+    // Prevent multiple simultaneous requests
+    if (loadingMore || loading || !meta?.hasNext) {
+      return;
+    }
+
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+
+    try {
+      const params = selectedTopic
+        ? { topic: selectedTopic, page: nextPage, pageSize: PAGE_SIZE }
+        : { page: nextPage, pageSize: PAGE_SIZE };
+
+      const data = await getNewsByTopic(params);
+
+      // Append new items to existing list
+      setNewsItems((prev) => [...prev, ...data.items]);
+      setMeta(data.meta);
+      setCurrentPage(nextPage);
+    } catch (error) {
+      console.error("Error loading more news:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Handle pull to refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setCurrentPage(1);
+
+    try {
+      const params = selectedTopic
+        ? { topic: selectedTopic, page: 1, pageSize: PAGE_SIZE }
+        : { page: 1, pageSize: PAGE_SIZE };
+
+      const data = await getNewsByTopic(params);
+
+      setNewsItems(data.items);
+      setMeta(data.meta);
+    } catch (error) {
+      console.error("Error refreshing news:", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleViewNewsDetail = (item: News) => {
-    // Navigation to detail screen can be implemented here
-    console.log("View details for news ID:", item);
     router.push({
       pathname: "/news-detail",
       params: { item: JSON.stringify(item) },
@@ -231,10 +268,16 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.container]}>
       <FlatList
-        data={newsList?.items}
+        data={newsItems}
         keyExtractor={(i) => i.id.toString()}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content]}
+        // Pull to refresh
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        // Load more pagination
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <>
             {/* Search */}
@@ -258,8 +301,12 @@ export default function HomeScreen() {
 
             {/* Popular Topics */}
             <View style={styles.section}>
-              <SectionHeader title="Popular Topics" onPressViewAll={() => {}} />
-              <View style={styles.tagsWrap}>
+              <SectionHeader title="Popular Topics" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.topicsScrollContent}
+              >
                 {topics.map((t, index) => (
                   <TagChip
                     key={t.key}
@@ -268,14 +315,13 @@ export default function HomeScreen() {
                     onPress={() => handleSelectTopic(t.label)}
                   />
                 ))}
-              </View>
+              </ScrollView>
             </View>
 
             {/* Latest News Header */}
             <View style={styles.section}>
               <SectionHeader
                 title={selectedTopic?.toUpperCase() || "Latest News"}
-                onPressViewAll={() => {}}
               />
             </View>
           </>
@@ -283,6 +329,43 @@ export default function HomeScreen() {
         renderItem={({ item }) => (
           <NewsCard item={item} onPress={() => handleViewNewsDetail(item)} />
         )}
+        ListFooterComponent={() => {
+          if (loadingMore) {
+            return (
+              <View style={styles.loadingFooter}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text style={styles.loadingText}>Loading more...</Text>
+              </View>
+            );
+          }
+
+          if (!loading && newsItems.length > 0 && !meta?.hasNext) {
+            return (
+              <View style={styles.endFooter}>
+                <Text style={styles.endText}>No more news to load</Text>
+              </View>
+            );
+          }
+
+          return null;
+        }}
+        ListEmptyComponent={() => {
+          if (loading) {
+            return (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text style={styles.loadingText}>Loading news...</Text>
+              </View>
+            );
+          }
+
+          return (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="newspaper-outline" size={64} color="#CBD5E1" />
+              <Text style={styles.emptyText}>No news available</Text>
+            </View>
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -346,23 +429,30 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "600",
   },
-  tagsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  topicsScrollContent: {
+    paddingRight: 16,
   },
   tagChip: {
     borderWidth: 1,
     borderColor: "#E0E7FF",
     backgroundColor: "#F8FAFF",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   tagText: {
     color: "#475569",
     fontWeight: "600",
+    fontSize: 13,
   },
   newsCard: {
     width: "90%",
@@ -451,5 +541,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#94A3B8",
     marginLeft: 4,
+  },
+  loadingFooter: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: "#64748B",
+  },
+  endFooter: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  endText: {
+    fontSize: 14,
+    color: "#94A3B8",
+    fontStyle: "italic",
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#94A3B8",
   },
 });

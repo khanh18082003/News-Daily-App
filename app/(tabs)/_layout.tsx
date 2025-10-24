@@ -60,7 +60,6 @@ export default function TabsLayout() {
     const loadTokens = async () => {
       const token = await getToken();
       setIsReporter(!!token);
-      console.log("Loaded token:", token);
     };
     loadTokens();
   }, []);
