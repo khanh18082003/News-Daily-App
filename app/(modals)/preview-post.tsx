@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import WebView from "react-native-webview";
+import { uploadFileToS3 } from "@/services/s3.service";
 
 export default function PreviewPost() {
   const router = useRouter();
@@ -24,7 +25,9 @@ export default function PreviewPost() {
   }>();
 
   const title = (params.title ?? "").toString();
-  const thumbnail = (params.thumbnail ?? "").toString();
+  const thumbnail = params.thumbnail
+    ? JSON.parse(decodeURIComponent(params.thumbnail))
+    : null;
   const contentHtml = (params.contentHtml ?? "").toString();
 
   const [predictedTopic, setPredictedTopic] = useState<string>("");
@@ -59,10 +62,9 @@ export default function PreviewPost() {
       if (!title && !contentHtml) return;
       try {
         setPredicting(true);
-        console.log(title, contentHtml);
-        // Điều chỉnh payload/field tùy theo chữ ký của predictTopic trong news.service.ts
+
         const res = await predictTopic(title, contentHtml);
-        console.log("Prediction response:", res);
+
         let topic: string | undefined;
 
         topic = res.label;
@@ -87,13 +89,22 @@ export default function PreviewPost() {
       Alert.alert("Thông báo", "Thiếu tiêu đề hoặc nội dung.");
       return;
     }
+    const formData = new FormData();
+    formData.append("file", {
+      uri: thumbnail?.uri,
+      name: thumbnail?.fileName,
+      type: thumbnail?.mimeType,
+    } as any);
+    formData.append("path", "news-thumbnails");
 
     try {
       setPosting(true);
+      const s3Result = await uploadFileToS3(formData);
+
       const payload = {
         title,
         author: "User",
-        thumbnail: thumbnail,
+        thumbnail: s3Result.url,
         content: contentHtml,
         topic: predictedTopic,
         publishTime: new Date(),
@@ -126,7 +137,7 @@ export default function PreviewPost() {
         }}
       >
         <Image
-          source={{ uri: thumbnail }}
+          source={{ uri: thumbnail?.uri }}
           style={{ width: "100%", height: 200 }}
         />
       </View>

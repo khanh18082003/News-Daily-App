@@ -12,17 +12,20 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SignUpScreen() {
   const router = useRouter();
   const [fullname, setFullname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { refresh } = useAuth();
 
   const onSignUp = async () => {
     try {
       const response = await register(fullname, email, password);
       console.log("Sign up response:", response);
+      await refresh();
       router.replace("/(tabs)");
     } catch (e: any) {
       console.warn(e?.message || "Registration failed");

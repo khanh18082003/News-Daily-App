@@ -1,8 +1,8 @@
+import { useAuth } from "@/hooks/useAuth";
 import { getToken } from "@/services/token.storage";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { Tabs, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 
 function AddPostTabButton(props: BottomTabBarButtonProps) {
@@ -53,16 +53,8 @@ function AddPostTabButton(props: BottomTabBarButtonProps) {
 }
 
 export default function TabsLayout() {
-  const [isReporter, setIsReporter] = useState(false);
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    const loadTokens = async () => {
-      const token = await getToken();
-      setIsReporter(!!token);
-    };
-    loadTokens();
-  }, []);
 
   return (
     <Tabs
@@ -88,7 +80,7 @@ export default function TabsLayout() {
             <Ionicons name="home" color={color} size={size} />
           ),
           headerRight: () =>
-            !isReporter ? (
+            !isAuthenticated ? (
               <TouchableOpacity
                 onPress={() => router.push("/(auth)/sign-in")}
                 hitSlop={10}
@@ -114,7 +106,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="add"
         options={
-          isReporter
+          isAuthenticated
             ? {
                 title: "Add Post",
                 tabBarIcon: () => null,

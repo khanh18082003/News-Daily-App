@@ -2,6 +2,7 @@ import { login } from "@/services/auth.service";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Image,
   Pressable,
@@ -20,11 +21,13 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const { refresh } = useAuth();
 
   const onSignIn = async () => {
     try {
       const response = await login(email, password);
       console.log("Sign in response:", response);
+      await refresh();
       router.replace("/(tabs)");
     } catch (e: any) {
       console.warn(e?.message || "Login failed");

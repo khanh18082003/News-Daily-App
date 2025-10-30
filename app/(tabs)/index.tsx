@@ -206,7 +206,6 @@ export default function HomeScreen() {
   const handleSelectTopic = async (label: string) => {
     const newTopic = selectedTopic === label ? null : label;
     setSelectedTopic(newTopic);
-    // fetchInitialNews will be triggered by useFocusEffect dependency
   };
 
   // Handle load more

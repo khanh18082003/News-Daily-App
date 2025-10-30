@@ -20,7 +20,8 @@ import {
 export default function AddPost() {
   const [contentHtml, setContentHtml] = useState("");
   const [isLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     publishTime: new Date(),
@@ -34,12 +35,23 @@ export default function AddPost() {
       return;
     }
 
+    // Chỉ truyền dữ liệu serializable
+    const thumbPayload = selectedImage
+      ? {
+          uri: selectedImage.uri,
+          fileName: selectedImage.fileName,
+          mimeType: selectedImage.mimeType,
+        }
+      : null;
+
     router.push({
       pathname: "/(modals)/preview-post",
       params: {
         title: formData.title,
-        thumbnail: selectedImage,
         contentHtml,
+        thumbnail: thumbPayload
+          ? encodeURIComponent(JSON.stringify(thumbPayload))
+          : "",
       },
     });
   };
@@ -66,7 +78,8 @@ export default function AddPost() {
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      setSelectedImage(result.assets[0]);
+      console.log("Selected image:", result.assets[0]);
     } else {
       Alert.alert("Image selection canceled", "You did not select any image.");
     }
@@ -95,7 +108,7 @@ export default function AddPost() {
             >
               {selectedImage ? (
                 <Image
-                  source={{ uri: selectedImage }}
+                  source={{ uri: selectedImage.uri }}
                   style={{ width: "100%", height: "100%" }}
                 />
               ) : (

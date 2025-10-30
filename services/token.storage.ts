@@ -23,6 +23,7 @@ export async function getToken(): Promise<string | null> {
 export async function clearToken() {
   try {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    console.log("Token cleared");
   } catch (e) {
     console.error("Failed to clear token:", e);
   }

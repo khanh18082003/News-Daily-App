@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import React, { useEffect } from "react";
 import {
   Alert,
   Pressable,
@@ -7,24 +8,30 @@ import {
   StyleSheet,
   Text,
   View,
+  StyleProp,
+  TextStyle,
 } from "react-native";
 import { clearToken } from "../../services/token.storage";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { isAuthenticated, logout } = useAuth();
 
   const items = [
     {
       key: "profile",
       label: "Profile",
       left: <Ionicons name="person-circle-outline" size={22} color="#6b7280" />,
-      onPress: () => router.push("/profile"), // TODO: create screen
+      onPress: () => Alert.alert("Profile", "This feature is coming soon."),
+      isAuthenticated,
     },
     {
       key: "mypost",
       label: "My Post",
       left: <Feather name="edit" size={20} color="#6b7280" />,
       onPress: () => {},
+      isAuthenticated,
     },
     {
       key: "notifications",
@@ -55,8 +62,7 @@ export default function SettingsScreen() {
         text: "Log Out",
         style: "destructive",
         onPress: async () => {
-          // TODO: clear auth token (SecureStore/AsyncStorage)
-          await clearToken();
+          await logout();
           router.replace("/(tabs)");
         },
       },
@@ -72,38 +78,57 @@ export default function SettingsScreen() {
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.card}>
-        {items.map((item, idx) => (
-          <Row
-            key={item.key}
-            label={item.label}
-            left={item.left}
-            onPress={item.onPress}
-            showDivider={idx < items.length - 1}
-          />
-        ))}
+        {items.map((item, idx) => {
+          if (item.isAuthenticated === false) {
+            return null;
+          }
+          return (
+            <Row
+              key={item.key}
+              label={item.label}
+              left={item.left}
+              onPress={item.onPress}
+              showDivider={idx < items.length - 1}
+            />
+          );
+        })}
 
         {/* Logout Row */}
-        <Row
-          label="Log Out"
-          left={<Ionicons name="log-out-outline" size={22} color="#ef4444" />}
-          right={<Ionicons name="chevron-forward" size={20} color="#9ca3af" />}
-          onPress={onLogout}
-          labelStyle={{ color: "#ef4444" }}
-          showDivider={false}
-        />
+        {isAuthenticated && (
+          <Row
+            label="Log Out"
+            left={<Ionicons name="log-out-outline" size={22} color="#ef4444" />}
+            right={
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            }
+            onPress={onLogout}
+            labelStyle={{ color: "#ef4444" }}
+            showDivider={false}
+          />
+        )}
       </View>
     </ScrollView>
   );
 }
 
-function Row({
-  label,
-  left,
-  right = <Ionicons name="chevron-forward" size={20} color="#9ca3af" />,
-  onPress,
-  showDivider = true,
-  labelStyle,
-}) {
+type RowProps = {
+  label: string;
+  left: React.ReactNode;
+  right?: React.ReactNode;
+  onPress?: () => void;
+  showDivider?: boolean;
+  labelStyle?: StyleProp<TextStyle>;
+};
+
+function Row(props: RowProps) {
+  const {
+    label,
+    left,
+    right = <Ionicons name="chevron-forward" size={20} color="#9ca3af" />,
+    onPress,
+    showDivider = true,
+    labelStyle,
+  } = props;
   return (
     <Pressable
       onPress={onPress}
@@ -155,18 +180,19 @@ const styles = StyleSheet.create({
   rowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    // React Native's 'gap' isn't available in older versions; use margin instead.
   },
   rowLabel: {
     fontSize: 15,
     color: "#111827",
+    marginLeft: 12,
   },
   rowDivider: {
     position: "absolute",
     bottom: 0,
     left: 16,
     right: 0,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: "#f3f4f6",
   },
 });
