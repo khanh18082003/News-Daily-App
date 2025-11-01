@@ -4,7 +4,7 @@
     "slug": "News-Daily-App",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/news-icon.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "newsdailyapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,9 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -24,14 +22,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/news-icon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-news-icon.png",
+          "image": "./assets/images/splash-icon-light.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -47,8 +45,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiBaseUrlBE": "https://be-datn-production-57c1.up.railway.app/",
-      "apiBaseUrlPredict": "https://api-predict-topic-production.up.railway.app/",
+      "apiBaseUrlBE": "https://be-datn-production-57c1.up.railway.app",
+      "apiBaseUrlPredict": "https://api-predict-topic-production.up.railway.app",
       "router": {},
       "eas": {
         "projectId": "fe5f3948-e39f-49c1-bef1-cf2f2803aa42"

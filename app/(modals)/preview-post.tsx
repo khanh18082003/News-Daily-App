@@ -1,4 +1,6 @@
+import { useAuth } from "@/hooks/useAuth";
 import { createNews, predictTopic } from "@/services/news.service";
+import { uploadFileToS3 } from "@/services/s3.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -14,7 +16,6 @@ import {
   View,
 } from "react-native";
 import WebView from "react-native-webview";
-import { uploadFileToS3 } from "@/services/s3.service";
 
 export default function PreviewPost() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function PreviewPost() {
     thumbnail?: string;
     contentHtml?: string;
   }>();
+  const { logout } = useAuth();
 
   const title = (params.title ?? "").toString();
   const thumbnail = params.thumbnail
@@ -30,7 +32,10 @@ export default function PreviewPost() {
     : null;
   const contentHtml = (params.contentHtml ?? "").toString();
 
-  const [predictedTopic, setPredictedTopic] = useState<string>("");
+  const [predictedTopic, setPredictedTopic] = useState<{
+    label: string;
+    confidence: number;
+  }>({ label: "", confidence: 0 });
   const [predicting, setPredicting] = useState<boolean>(false);
   const [posting, setPosting] = useState<boolean>(false);
   const [isEditingTopic, setIsEditingTopic] = useState<boolean>(false);
@@ -67,12 +72,16 @@ export default function PreviewPost() {
 
         let topic: string | undefined;
 
-        topic = res.label;
+        topic = res.best_label;
 
-        if (mounted) setPredictedTopic(topic ?? "Unknown");
+        if (mounted)
+          setPredictedTopic({
+            label: topic ?? "Unknown",
+            confidence: res.confidence ?? 0,
+          });
       } catch (e) {
         console.warn("Predict failed", e);
-        if (mounted) setPredictedTopic("Unknown");
+        if (mounted) setPredictedTopic({ label: "Unknown", confidence: 0 });
       } finally {
         if (mounted) setPredicting(false);
       }
@@ -106,7 +115,7 @@ export default function PreviewPost() {
         author: "User",
         thumbnail: s3Result.url,
         content: contentHtml,
-        topic: predictedTopic,
+        topic: predictedTopic.label,
         publishTime: new Date(),
       };
 
@@ -116,6 +125,7 @@ export default function PreviewPost() {
       ]);
     } catch (e) {
       console.warn("Create news failed", e);
+      await logout();
       Alert.alert("Lỗi", "Không thể tạo bài viết, hãy thử lại.");
     } finally {
       setPosting(false);
@@ -125,6 +135,20 @@ export default function PreviewPost() {
   const handleEdit = () => {
     router.back();
   };
+
+  // Confidence helpers
+  const confidencePercent = useMemo(() => {
+    const c = predictedTopic.confidence || 0;
+    const normalized = c > 1 ? c / 100 : c; // Support 0-100 or 0-1
+    return Math.max(0, Math.min(100, Math.round(normalized * 100)));
+  }, [predictedTopic.confidence]);
+
+  const confidenceColors = useMemo(() => {
+    const p = confidencePercent / 100;
+    if (p >= 0.8) return { bg: "#DCFCE7", border: "#86EFAC", text: "#166534" }; // green
+    if (p >= 0.5) return { bg: "#FEF3C7", border: "#FDE68A", text: "#92400E" }; // amber
+    return { bg: "#FEE2E2", border: "#FCA5A5", text: "#991B1B" }; // red
+  }, [confidencePercent]);
 
   return (
     <View style={styles.container}>
@@ -166,8 +190,32 @@ export default function PreviewPost() {
               {!isEditingTopic ? (
                 <View style={styles.topicDisplayRow}>
                   <Text style={styles.topicValue}>
-                    {predictedTopic || "Unknown"}
+                    {predictedTopic.label || "Unknown"}
                   </Text>
+                  <View
+                    style={[
+                      styles.confidenceBadge,
+                      {
+                        backgroundColor: confidenceColors.bg,
+                        borderColor: confidenceColors.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="speedometer-outline"
+                      size={14}
+                      color={confidenceColors.text}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.confidenceText,
+                        { color: confidenceColors.text },
+                      ]}
+                    >
+                      {confidencePercent}%
+                    </Text>
+                  </View>
                   <Pressable
                     hitSlop={8}
                     onPress={() => setIsEditingTopic(true)}
@@ -181,9 +229,14 @@ export default function PreviewPost() {
                 <View style={styles.topicEditRow}>
                   <TextInput
                     style={styles.topicInput}
-                    value={predictedTopic}
+                    value={predictedTopic.label}
                     placeholder="Enter topic"
-                    onChangeText={setPredictedTopic}
+                    onChangeText={(text) =>
+                      setPredictedTopic({
+                        label: text,
+                        confidence: predictedTopic.confidence,
+                      })
+                    }
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="done"
@@ -293,4 +346,17 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   btnText: { fontWeight: "700", color: "#111827", fontSize: 16 },
+  confidenceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginLeft: 8,
+  },
+  confidenceText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });

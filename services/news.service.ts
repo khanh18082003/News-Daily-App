@@ -1,6 +1,5 @@
-import { router } from "expo-router";
 import { API_BASE_URL_BE, API_BASE_URL_PREDICT } from "./global";
-import { clearToken, getToken } from "./token.storage";
+import { getToken } from "./token.storage";
 
 type CreateNewsDto = {
   title: string;
@@ -35,12 +34,8 @@ export const createNews = async (newsData: CreateNewsDto) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Error response:", errorText);
-      throw new Error(`Request failed with status ${response.status}`);
-    }
 
-    if (response.status === 401) {
-      await clearToken();
-      router.replace("/(tabs)");
+      throw new Error(`Request failed with status ${response.status}`);
     }
 
     const json = await response.json();
