@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/useAuth";
 import { register } from "@/services/auth.service";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
@@ -12,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "@/hooks/useAuth";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function SignUpScreen() {
         {/* Header / Logo */}
         <View style={{ alignItems: "center" }}>
           <Image
-            source={require("../../assets/images/news-icon.png")}
+            source={require("../../assets/images/icon.png")}
             style={{ width: 150, height: 150, resizeMode: "contain" }}
           />
         </View>

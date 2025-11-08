@@ -195,7 +195,7 @@ const NewsDetail = () => {
           source={
             item.thumbnail
               ? { uri: item.thumbnail }
-              : require("../assets/images/news-icon.png")
+              : require("../assets/images/icon.png")
           }
           style={styles.thumbnail}
           resizeMode="cover"

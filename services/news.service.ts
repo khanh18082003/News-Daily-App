@@ -16,6 +16,7 @@ type ListNewsQueryDto = {
   order?: "ASC" | "DESC";
   publisherId?: number;
   topic?: string;
+  title?: string;
 };
 
 export const createNews = async (newsData: CreateNewsDto) => {
@@ -75,6 +76,9 @@ export const getNewsByTopic = async (query: ListNewsQueryDto) => {
     }
     if (query.topic) {
       params.set("topic", query.topic);
+    }
+    if (query.title) {
+      params.set("title", query.title);
     }
 
     const response = await fetch(

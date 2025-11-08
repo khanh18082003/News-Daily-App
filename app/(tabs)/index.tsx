@@ -1,7 +1,7 @@
 import { getAllTopics, getNewsByTopic } from "@/services/news.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -106,7 +106,7 @@ function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
         source={
           item.thumbnail
             ? { uri: item.thumbnail }
-            : require("../../assets/images/news-icon.png")
+            : require("../../assets/images/icon.png")
         }
         style={styles.newsImage}
         resizeMode="cover"
@@ -147,6 +147,9 @@ function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
 export default function HomeScreen() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSeq = useRef(0); // sequence chống race
   const [newsItems, setNewsItems] = useState<News[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const router = useRouter();
@@ -157,7 +160,7 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const PAGE_SIZE = 2;
+  const PAGE_SIZE = 10;
 
   // Fetch topics on mount
   useEffect(() => {
@@ -172,89 +175,97 @@ export default function HomeScreen() {
     fetchTopics();
   }, []);
 
-  // Fetch initial news
-  const fetchInitialNews = useCallback(async () => {
-    if (loading) return;
-
-    setLoading(true);
-    setCurrentPage(1);
-
-    try {
-      const params = selectedTopic
-        ? { topic: selectedTopic, page: 1, pageSize: PAGE_SIZE }
-        : { page: 1, pageSize: PAGE_SIZE };
-
-      const data = await getNewsByTopic(params);
-
-      setNewsItems(data.items);
-      setMeta(data.meta);
-    } catch (error) {
-      console.error("Error fetching news:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedTopic]);
-
-  // Fetch news when screen is focused or topic changes
-  useFocusEffect(
-    useCallback(() => {
-      fetchInitialNews();
-    }, [fetchInitialNews])
+  const buildParams = useCallback(
+    (page: number) => {
+      const params: any = { page, pageSize: PAGE_SIZE };
+      if (selectedTopic) params.topic = selectedTopic;
+      const q = searchQuery.trim();
+      if (q && q.length >= 2) params.title = q;
+      return params;
+    },
+    [selectedTopic, searchQuery]
   );
 
-  // Handle topic selection
-  const handleSelectTopic = async (label: string) => {
-    const newTopic = selectedTopic === label ? null : label;
-    setSelectedTopic(newTopic);
+  const loadNews = useCallback(
+    async (page: number, append = false) => {
+      if (page === 1) {
+        setLoading(!append);
+      }
+      if (append) setLoadingMore(true);
+
+      const seq = ++requestSeq.current;
+      try {
+        const data = await getNewsByTopic(buildParams(page));
+        // Bỏ kết quả cũ nếu có request mới hơn
+        if (seq !== requestSeq.current) return;
+        setMeta(data.meta);
+        setCurrentPage(page);
+        setNewsItems((prev) =>
+          append ? [...prev, ...data.items] : data.items
+        );
+      } catch (e) {
+        if (append) console.error("Load more failed:", e);
+        else console.error("Load failed:", e);
+      } finally {
+        if (seq === requestSeq.current) {
+          setLoading(false);
+          setLoadingMore(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [buildParams]
+  );
+
+  // Refetch khi selectedTopic thay đổi
+  useEffect(() => {
+    // reset immediate
+    setCurrentPage(1);
+    loadNews(1, false);
+  }, [selectedTopic, loadNews]);
+
+  // Debounce search
+  useEffect(() => {
+    if (debouncedRef.current) clearTimeout(debouncedRef.current);
+    debouncedRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      loadNews(1, false);
+    }, 450);
+    return () => {
+      if (debouncedRef.current) clearTimeout(debouncedRef.current);
+    };
+  }, [searchQuery, loadNews]);
+
+  // Khi screen focus lần đầu
+  useFocusEffect(
+    useCallback(() => {
+      if (newsItems.length === 0) {
+        loadNews(1, false);
+      }
+    }, [loadNews, newsItems.length])
+  );
+
+  const handleSelectTopic = (label: string) => {
+    setSelectedTopic((prev) => (prev === label ? null : label));
   };
 
-  // Handle load more
   const handleLoadMore = async () => {
-    // Prevent multiple simultaneous requests
-    if (loadingMore || loading || !meta?.hasNext) {
-      return;
-    }
-
-    setLoadingMore(true);
-    const nextPage = currentPage + 1;
-
-    try {
-      const params = selectedTopic
-        ? { topic: selectedTopic, page: nextPage, pageSize: PAGE_SIZE }
-        : { page: nextPage, pageSize: PAGE_SIZE };
-
-      const data = await getNewsByTopic(params);
-
-      // Append new items to existing list
-      setNewsItems((prev) => [...prev, ...data.items]);
-      setMeta(data.meta);
-      setCurrentPage(nextPage);
-    } catch (error) {
-      console.error("Error loading more news:", error);
-    } finally {
-      setLoadingMore(false);
-    }
+    if (loadingMore || loading || !meta?.hasNext) return;
+    await loadNews(currentPage + 1, true);
   };
 
-  // Handle pull to refresh
   const handleRefresh = async () => {
     setRefreshing(true);
-    setCurrentPage(1);
+    await loadNews(1, false);
+  };
 
-    try {
-      const params = selectedTopic
-        ? { topic: selectedTopic, page: 1, pageSize: PAGE_SIZE }
-        : { page: 1, pageSize: PAGE_SIZE };
+  const handleOnChangeSearch = (text: string) => {
+    setSearchQuery(text);
+  };
 
-      const data = await getNewsByTopic(params);
-
-      setNewsItems(data.items);
-      setMeta(data.meta);
-    } catch (error) {
-      console.error("Error refreshing news:", error);
-    } finally {
-      setRefreshing(false);
-    }
+  const clearSearch = () => {
+    if (!searchQuery) return;
+    setSearchQuery("");
   };
 
   const handleViewNewsDetail = (item: News) => {
@@ -286,16 +297,17 @@ export default function HomeScreen() {
                 <TextInput
                   placeholder="Search"
                   placeholderTextColor="#9CA3AF"
+                  value={searchQuery}
+                  onChangeText={handleOnChangeSearch}
                   style={styles.searchInput}
+                  returnKeyType="search"
                 />
+                {!!searchQuery && (
+                  <Pressable onPress={clearSearch} hitSlop={10}>
+                    <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  </Pressable>
+                )}
               </View>
-              <Pressable style={styles.iconBtn}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color="#334155"
-                />
-              </Pressable>
             </View>
 
             {/* Popular Topics */}
