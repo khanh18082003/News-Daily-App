@@ -1,18 +1,17 @@
+import { useAuth } from "@/hooks/useAuth";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
   Alert,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
-  View,
-  StyleProp,
   TextStyle,
+  View,
 } from "react-native";
-import { clearToken } from "../../services/token.storage";
-import { useAuth } from "@/hooks/useAuth";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -23,14 +22,14 @@ export default function SettingsScreen() {
       key: "profile",
       label: "Profile",
       left: <Ionicons name="person-circle-outline" size={22} color="#6b7280" />,
-      onPress: () => Alert.alert("Profile", "This feature is coming soon."),
+      onPress: () => router.push("/profile"),
       isAuthenticated,
     },
     {
       key: "mypost",
       label: "My Post",
       left: <Feather name="edit" size={20} color="#6b7280" />,
-      onPress: () => {},
+      onPress: () => router.push("/my-post"),
       isAuthenticated,
     },
     {

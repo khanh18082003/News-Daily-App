@@ -1,24 +1,18 @@
-import { getAllTopics, getNewsByTopic } from "@/services/news.service";
+import { getMyPostedNews } from "@/services/news.service";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-type Topic = {
-  key: string;
-  label: string;
-};
 
 type News = {
   id: number;
@@ -43,51 +37,17 @@ type Meta = {
   hasPrev: boolean;
 };
 
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
-  );
-}
-
-function TagChip({
-  label,
-  isSelected,
-  onPress,
-}: {
-  label: string;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={[styles.tagChip, isSelected && { backgroundColor: "#bac7f3ff" }]}
-      onPress={onPress}
-    >
-      <Text style={styles.tagText}>{label.toUpperCase()}</Text>
-    </Pressable>
-  );
-}
-
 function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
-  // Format date safely
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "N/A";
-
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-
-    // Check if date is valid
     if (isNaN(date.getTime())) return "N/A";
-
     const day = date.getDate();
     const month = date.getMonth() + 1;
     const year = date.getFullYear();
-
     return `${day}/${month}/${year}`;
   };
 
-  // Strip HTML tags from content
   const stripHtml = (html: string) => {
     return html.replace(/<[^>]*>/g, "").trim();
   };
@@ -96,32 +56,27 @@ function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
 
   return (
     <Pressable style={styles.newsCard} onPress={onPress}>
-      {/* Thumbnail Image */}
       <Image
         source={
           item.thumbnail
             ? { uri: item.thumbnail }
-            : require("../../assets/images/icon.png")
+            : require("../assets/images/icon.png")
         }
         style={styles.newsImage}
         resizeMode="cover"
       />
-
-      {/* Content Container */}
       <View style={styles.newsBody}>
-        {/* Title */}
+        <View style={styles.topicBadge}>
+          <Text style={styles.topicText}>{item.topic}</Text>
+        </View>
         <Text numberOfLines={2} style={styles.newsTitle}>
           {item.title}
         </Text>
-
-        {/* Content Preview */}
         {plainContent && (
           <Text numberOfLines={3} style={styles.newsContent}>
             {plainContent}
           </Text>
         )}
-
-        {/* Author & Date Row */}
         <View style={styles.metaRow}>
           <View style={styles.authorContainer}>
             <Ionicons name="person-circle-outline" size={16} color="#64748B" />
@@ -139,17 +94,14 @@ function NewsCard({ item, onPress }: { item: News; onPress: () => void }) {
   );
 }
 
-export default function HomeScreen() {
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+const MyPost = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const debouncedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestSeq = useRef(0); // sequence chống race
+  const requestSeq = useRef(0);
   const [newsItems, setNewsItems] = useState<News[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const router = useRouter();
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
@@ -157,28 +109,14 @@ export default function HomeScreen() {
 
   const PAGE_SIZE = 10;
 
-  // Fetch topics on mount
-  useEffect(() => {
-    const fetchTopics = async () => {
-      try {
-        const data = await getAllTopics();
-        setTopics(data);
-      } catch (error) {
-        console.error("Error fetching topics:", error);
-      }
-    };
-    fetchTopics();
-  }, []);
-
   const buildParams = useCallback(
     (page: number) => {
       const params: any = { page, pageSize: PAGE_SIZE };
-      if (selectedTopic) params.topic = selectedTopic;
       const q = searchQuery.trim();
       if (q && q.length >= 2) params.title = q;
       return params;
     },
-    [selectedTopic, searchQuery]
+    [searchQuery]
   );
 
   const loadNews = useCallback(
@@ -190,8 +128,7 @@ export default function HomeScreen() {
 
       const seq = ++requestSeq.current;
       try {
-        const data = await getNewsByTopic(buildParams(page));
-        // Bỏ kết quả cũ nếu có request mới hơn
+        const data = await getMyPostedNews(buildParams(page));
         if (seq !== requestSeq.current) return;
         setMeta(data.meta);
         setCurrentPage(page);
@@ -199,8 +136,7 @@ export default function HomeScreen() {
           append ? [...prev, ...data.items] : data.items
         );
       } catch (e) {
-        if (append) console.error("Load more failed:", e);
-        else console.error("Load failed:", e);
+        console.error("Load failed:", e);
       } finally {
         if (seq === requestSeq.current) {
           setLoading(false);
@@ -212,14 +148,10 @@ export default function HomeScreen() {
     [buildParams]
   );
 
-  // Refetch khi selectedTopic thay đổi
   useEffect(() => {
-    // reset immediate
-    setCurrentPage(1);
     loadNews(1, false);
-  }, [selectedTopic, loadNews]);
+  }, []);
 
-  // Debounce search
   useEffect(() => {
     if (debouncedRef.current) clearTimeout(debouncedRef.current);
     debouncedRef.current = setTimeout(() => {
@@ -230,19 +162,6 @@ export default function HomeScreen() {
       if (debouncedRef.current) clearTimeout(debouncedRef.current);
     };
   }, [searchQuery, loadNews]);
-
-  // Khi screen focus lần đầu
-  useFocusEffect(
-    useCallback(() => {
-      if (newsItems.length === 0) {
-        loadNews(1, false);
-      }
-    }, [loadNews, newsItems.length])
-  );
-
-  const handleSelectTopic = (label: string) => {
-    setSelectedTopic((prev) => (prev === label ? null : label));
-  };
 
   const handleLoadMore = async () => {
     if (loadingMore || loading || !meta?.hasNext) return;
@@ -270,27 +189,39 @@ export default function HomeScreen() {
     });
   };
 
+  const handleGoBack = () => {
+    router.back();
+  };
+
   return (
-    <SafeAreaView style={[styles.container]}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={newsItems}
         keyExtractor={(i) => i.id.toString()}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content]}
-        // Pull to refresh
+        contentContainerStyle={styles.content}
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        // Load more pagination
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <>
-            {/* Search */}
+            <View style={styles.header}>
+              <Pressable onPress={handleGoBack} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#0F172A" />
+              </Pressable>
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>My Posts</Text>
+                <Text style={styles.headerSubtitle}>
+                  {meta?.total || 0} posts
+                </Text>
+              </View>
+            </View>
             <View style={styles.searchRow}>
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={18} color="#94A3B8" />
                 <TextInput
-                  placeholder="Search"
+                  placeholder="Search my posts..."
                   placeholderTextColor="#9CA3AF"
                   value={searchQuery}
                   onChangeText={handleOnChangeSearch}
@@ -303,32 +234,6 @@ export default function HomeScreen() {
                   </Pressable>
                 )}
               </View>
-            </View>
-
-            {/* Popular Topics */}
-            <View style={styles.section}>
-              <SectionHeader title="Popular Topics" />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.topicsScrollContent}
-              >
-                {topics.map((t, index) => (
-                  <TagChip
-                    key={t.key}
-                    label={t.label}
-                    isSelected={selectedTopic === t.label}
-                    onPress={() => handleSelectTopic(t.label)}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Latest News Header */}
-            <View style={styles.section}>
-              <SectionHeader
-                title={selectedTopic?.toUpperCase() || "Latest News"}
-              />
             </View>
           </>
         }
@@ -348,7 +253,7 @@ export default function HomeScreen() {
           if (!loading && newsItems.length > 0 && !meta?.hasNext) {
             return (
               <View style={styles.endFooter}>
-                <Text style={styles.endText}>No more news to load</Text>
+                <Text style={styles.endText}>No more posts to load</Text>
               </View>
             );
           }
@@ -360,22 +265,31 @@ export default function HomeScreen() {
             return (
               <View style={styles.emptyContainer}>
                 <ActivityIndicator size="large" color="#2563EB" />
-                <Text style={styles.loadingText}>Loading news...</Text>
+                <Text style={styles.loadingText}>Loading posts...</Text>
               </View>
             );
           }
 
           return (
             <View style={styles.emptyContainer}>
-              <Ionicons name="newspaper-outline" size={64} color="#CBD5E1" />
-              <Text style={styles.emptyText}>No news available</Text>
+              <Ionicons
+                name="document-text-outline"
+                size={64}
+                color="#CBD5E1"
+              />
+              <Text style={styles.emptyText}>No posts yet</Text>
+              <Text style={styles.emptySubtext}>
+                Start creating your first post!
+              </Text>
             </View>
           );
         }}
       />
     </SafeAreaView>
   );
-}
+};
+
+export default MyPost;
 
 const styles = StyleSheet.create({
   container: {
@@ -385,12 +299,41 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 24,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    marginRight: 12,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   searchBox: {
     flex: 1,
@@ -407,67 +350,23 @@ const styles = StyleSheet.create({
     color: "#111827",
     flex: 1,
   },
-  iconBtn: {
-    marginLeft: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#EEF2FF",
-  },
-  section: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  linkText: {
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  topicsScrollContent: {
-    paddingRight: 16,
-  },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: "#E0E7FF",
-    backgroundColor: "#F8FAFF",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 10,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  tagText: {
-    color: "#475569",
-    fontWeight: "600",
-    fontSize: 13,
-  },
   newsCard: {
     width: "90%",
     backgroundColor: "#FFFFFF",
     margin: "auto",
+    marginBottom: 16,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   newsImage: {
     width: "100%",
@@ -476,55 +375,37 @@ const styles = StyleSheet.create({
   newsBody: {
     padding: 16,
   },
+  topicBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  topicText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#4F46E5",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   newsTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 6,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  channelText: {
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  mutedText: {
-    color: "#94A3B8",
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#CBD5E1",
-    marginHorizontal: 6,
-  },
-  recItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  recThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
-    marginRight: 12,
-  },
-  recInfo: {
-    flex: 1,
-  },
-  recTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 6,
+    lineHeight: 22,
   },
   newsContent: {
     fontSize: 14,
     color: "#475569",
     lineHeight: 20,
     marginBottom: 12,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   authorContainer: {
     flexDirection: "row",
@@ -570,13 +451,19 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   emptyContainer: {
-    paddingVertical: 60,
+    paddingVertical: 80,
     alignItems: "center",
     justifyContent: "center",
   },
   emptyText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  emptySubtext: {
+    marginTop: 8,
+    fontSize: 14,
     color: "#94A3B8",
   },
 });

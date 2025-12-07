@@ -1,5 +1,5 @@
 import { API_BASE_URL_BE } from "./global";
-import { saveToken } from "./token.storage";
+import { getToken, saveToken } from "./token.storage";
 
 export const register = async (
   fullname: string,
@@ -53,6 +53,30 @@ export const login = async (email: string, password: string) => {
     return data;
   } catch (error) {
     console.error("Error during login:", error);
+    throw error;
+  }
+};
+
+export const getMyProfile = async () => {
+  try {
+    const token = await getToken();
+    const response = await fetch(`${API_BASE_URL_BE}/auth/profile`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to fetch profile");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching profile:", error);
     throw error;
   }
 };

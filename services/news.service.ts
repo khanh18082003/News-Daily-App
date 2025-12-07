@@ -22,6 +22,7 @@ type ListNewsQueryDto = {
 export const createNews = async (newsData: CreateNewsDto) => {
   try {
     const token = await getToken();
+    console.log("token:", token);
 
     const response = await fetch(`${API_BASE_URL_BE}/news`, {
       method: "POST",
@@ -83,6 +84,42 @@ export const getNewsByTopic = async (query: ListNewsQueryDto) => {
 
     const response = await fetch(
       `${API_BASE_URL_BE}/news/paged?` + params.toString()
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error response:", errorText);
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    const json = await response.json();
+    return json;
+  } catch (error) {
+    console.error("Fetch error:", error);
+    throw error;
+  }
+};
+
+export const getMyPostedNews = async (query: ListNewsQueryDto) => {
+  try {
+    const token = await getToken();
+    const params = new URLSearchParams({
+      page: (query.page ?? 1).toString(),
+      pageSize: (query.pageSize ?? 10).toString(),
+      order: (query.order ?? "DESC") as string,
+    });
+    if (query.topic) {
+      params.set("topic", query.topic);
+    }
+    if (query.title) {
+      params.set("title", query.title);
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL_BE}/news/my/paged?` + params.toString(),
+      {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
     );
     if (!response.ok) {
       const errorText = await response.text();

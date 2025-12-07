@@ -1,5 +1,4 @@
 import { useAuth } from "@/hooks/useAuth";
-import { getToken } from "@/services/token.storage";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { Tabs, useRouter } from "expo-router";
