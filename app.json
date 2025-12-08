@@ -46,7 +46,7 @@
     },
     "extra": {
       "apiBaseUrlBE": "https://be-datn-production-57c1.up.railway.app",
-      "apiBaseUrlPredict": "http://192.168.1.37:8000",
+      "apiBaseUrlPredict": "https://api-predict-topic-production.up.railway.app",
       "router": {},
       "eas": {
         "projectId": "fe5f3948-e39f-49c1-bef1-cf2f2803aa42"
