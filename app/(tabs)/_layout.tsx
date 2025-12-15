@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarButtonProps } from "@react-navigation/bottom-tabs";
 import { Tabs, useRouter } from "expo-router";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function AddPostTabButton(props: BottomTabBarButtonProps) {
   const router = useRouter();
@@ -54,6 +55,7 @@ function AddPostTabButton(props: BottomTabBarButtonProps) {
 export default function TabsLayout() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -64,8 +66,9 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: "#19A7FE" },
         headerTitleStyle: { color: "#fff", fontSize: 24, fontWeight: "bold" },
         tabBarStyle: {
-          height: 70,
-          paddingBottom: Platform.select({ ios: 12, android: 8 }),
+          height: 70 + insets.bottom,
+          paddingBottom:
+            insets.bottom + Platform.select({ ios: 12, android: 8 })!,
         },
         tabBarLabelStyle: { fontSize: 12 },
       }}

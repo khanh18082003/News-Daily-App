@@ -1,3 +1,4 @@
+import UserProvider from "@/contexts/UserProvider";
 import {
   DarkTheme,
   DefaultTheme,
@@ -6,17 +7,19 @@ import {
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
-import UserProvider from "@/contexts/UserProvider";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <UserProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </UserProvider>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <UserProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </UserProvider>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
