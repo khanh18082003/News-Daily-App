@@ -134,14 +134,14 @@ export const getMyPostedNews = async (query: ListNewsQueryDto) => {
   }
 };
 
-export const predictTopic = async (title: string, content: string) => {
+export const predictTopic = async (title: string, desc: string) => {
   try {
     const response = await fetch(`${API_BASE_URL_PREDICT}/predict`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify({ title, content: desc }),
     });
 
     if (!response.ok) {

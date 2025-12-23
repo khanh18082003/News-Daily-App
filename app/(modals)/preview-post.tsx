@@ -9,24 +9,51 @@ import {
   Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import WebView from "react-native-webview";
 
+function escapeHtml(input: string) {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+const TOPIC_OPTIONS = [
+  "Công nghệ",
+  "Du lịch",
+  "Giáo dục",
+  "Giải trí",
+  "Khoa học",
+  "Kinh doanh",
+  "Pháp luật",
+  "Sức khỏe",
+  "Thế giới",
+  "Thể thao",
+  "Thời sự",
+  "Xe",
+  "Đời sống",
+];
+
 export default function PreviewPost() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     title?: string;
+    description?: string;
     thumbnail?: string;
     contentHtml?: string;
   }>();
   const { logout } = useAuth();
 
   const title = (params.title ?? "").toString();
+  const description = (params.description ?? "").toString();
   const thumbnail = params.thumbnail
     ? JSON.parse(decodeURIComponent(params.thumbnail))
     : null;
@@ -64,24 +91,22 @@ export default function PreviewPost() {
     let mounted = true;
 
     const runPredict = async () => {
-      if (!title && !contentHtml) return;
+      if (!title && !description) return;
       try {
         setPredicting(true);
 
-        const res = await predictTopic(title, contentHtml);
+        const res = await predictTopic(title, description);
 
-        let topic: string | undefined;
-
-        topic = res.best_label;
+        const topic: string | undefined = res.best_label;
 
         if (mounted)
           setPredictedTopic({
-            label: topic ?? "Unknown",
+            label: topic || "",
             confidence: res.confidence ?? 0,
           });
       } catch (e) {
         console.warn("Predict failed", e);
-        if (mounted) setPredictedTopic({ label: "Unknown", confidence: 0 });
+        if (mounted) setPredictedTopic({ label: "", confidence: 0 });
       } finally {
         if (mounted) setPredicting(false);
       }
@@ -91,13 +116,15 @@ export default function PreviewPost() {
     return () => {
       mounted = false;
     };
-  }, [title, contentHtml]);
+  }, [title, description]);
 
   const handlePost = async () => {
-    if (!title.trim() || !contentHtml.trim()) {
-      Alert.alert("Thông báo", "Thiếu tiêu đề hoặc nội dung.");
+    if (!title.trim() || !contentHtml.trim() || !description.trim()) {
+      Alert.alert("Thông báo", "Thiếu tiêu đề, mô tả hoặc nội dung.");
       return;
     }
+
+    const mergedContent = `<p>${escapeHtml(description)}</p>\n${contentHtml}`;
     const formData = new FormData();
     formData.append("file", {
       uri: thumbnail?.uri,
@@ -114,8 +141,8 @@ export default function PreviewPost() {
         title,
         author: "User",
         thumbnail: s3Result.url,
-        content: contentHtml,
-        topic: predictedTopic.label,
+        content: mergedContent,
+        topic: predictedTopic.label || "Unknown",
         publishTime: new Date(),
       };
 
@@ -169,7 +196,12 @@ export default function PreviewPost() {
         <Text style={styles.label}>Title</Text>
         <Text style={styles.title}>{title || "(No title)"}</Text>
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Content</Text>
+        <Text style={styles.label}>Description</Text>
+        <Text style={styles.description}>
+          {description || "(No description)"}
+        </Text>
+
+        <Text style={[styles.label, { marginTop: 10 }]}>Content</Text>
 
         {/* Đặt chiều cao cụ thể cho WebView, bỏ ScrollView bao ngoài */}
         <WebView
@@ -190,7 +222,9 @@ export default function PreviewPost() {
               {!isEditingTopic ? (
                 <View style={styles.topicDisplayRow}>
                   <Text style={styles.topicValue}>
-                    {predictedTopic.label || "Unknown"}
+                    {predictedTopic.label
+                      ? predictedTopic.label
+                      : "Không xác định"}
                   </Text>
                   <View
                     style={[
@@ -226,34 +260,62 @@ export default function PreviewPost() {
                   </Pressable>
                 </View>
               ) : (
-                <View style={styles.topicEditRow}>
-                  <TextInput
-                    style={styles.topicInput}
-                    value={predictedTopic.label}
-                    placeholder="Enter topic"
-                    onChangeText={(text) =>
-                      setPredictedTopic({
-                        label: text,
-                        confidence: predictedTopic.confidence,
-                      })
-                    }
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                    onSubmitEditing={() => setIsEditingTopic(false)}
-                  />
-                  <Pressable
-                    hitSlop={8}
-                    onPress={() => setIsEditingTopic(false)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Save topic"
+                <View style={styles.topicEditContainer}>
+                  <View style={styles.topicEditHeaderRow}>
+                    <Text style={styles.topicEditTitle}>Chọn chủ đề</Text>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => setIsEditingTopic(false)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel topic selection"
+                    >
+                      <Ionicons name="close-circle" size={22} color="#6B7280" />
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    style={styles.topicList}
+                    contentContainerStyle={{ paddingVertical: 6 }}
+                    showsVerticalScrollIndicator={false}
                   >
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={22}
-                      color="#16a34a"
-                    />
-                  </Pressable>
+                    {TOPIC_OPTIONS.map((t) => {
+                      const selected = predictedTopic.label === t;
+                      return (
+                        <Pressable
+                          key={t}
+                          onPress={() => {
+                            setPredictedTopic({
+                              label: t,
+                              confidence: predictedTopic.confidence,
+                            });
+                            setIsEditingTopic(false);
+                          }}
+                          style={[
+                            styles.topicOption,
+                            selected && styles.topicOptionSelected,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Select topic ${t}`}
+                        >
+                          <Text
+                            style={[
+                              styles.topicOptionText,
+                              selected && styles.topicOptionTextSelected,
+                            ]}
+                          >
+                            {t}
+                          </Text>
+                          {selected ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={18}
+                              color="#2563EB"
+                            />
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
               )}
             </>
@@ -299,6 +361,7 @@ const styles = StyleSheet.create({
   },
   label: { color: "#6b7280", fontSize: 12, fontWeight: "600" },
   title: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  description: { fontSize: 16, color: "#374151" },
   contentBox: { maxHeight: 300, marginTop: 4 },
   contentText: { fontSize: 16, lineHeight: 22, color: "#111827" },
   topicRow: {
@@ -313,20 +376,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  topicEditRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  topicInput: {
+  topicEditContainer: {
     flex: 1,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#fff",
+  },
+  topicEditHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  topicEditTitle: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#111827",
+  },
+  topicList: {
+    maxHeight: 220,
+  },
+  topicOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 8,
+  },
+  topicOptionSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+  topicOptionText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  topicOptionTextSelected: {
+    color: "#2563EB",
   },
   actions: {
     flexDirection: "row",

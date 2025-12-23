@@ -24,14 +24,19 @@ export default function AddPost() {
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [formData, setFormData] = useState({
     title: "",
+    description: "",
     publishTime: new Date(),
   });
 
   const router = useRouter();
 
   const handleNext = () => {
-    if (!formData.title.trim() || !contentHtml.trim()) {
-      Alert.alert("Thông báo", "Vui lòng nhập tiêu đề và nội dung.");
+    if (
+      !formData.title.trim() ||
+      !formData.description.trim() ||
+      !contentHtml.trim()
+    ) {
+      Alert.alert("Thông báo", "Vui lòng nhập tiêu đề , mô tả và nội dung.");
       return;
     }
 
@@ -48,6 +53,7 @@ export default function AddPost() {
       pathname: "/(modals)/preview-post",
       params: {
         title: formData.title,
+        description: formData.description,
         contentHtml,
         thumbnail: thumbPayload
           ? encodeURIComponent(JSON.stringify(thumbPayload))
@@ -128,7 +134,14 @@ export default function AddPost() {
             value={formData.title}
             onChangeText={(text) => setFormData({ ...formData, title: text })}
           />
-
+          <TextInput
+            placeholder="Add Description"
+            style={styles.input}
+            value={formData.description}
+            onChangeText={(text) =>
+              setFormData({ ...formData, description: text })
+            }
+          />
           {/* Rich Text Editor with fixed height so it scrolls internally */}
           <Editor
             value={contentHtml}
