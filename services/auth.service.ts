@@ -1,6 +1,13 @@
 import { API_BASE_URL_BE } from "./global";
 import { getToken, saveToken } from "./token.storage";
 
+function makeHttpError(message: string, status: number, data?: unknown) {
+  const err = new Error(message) as Error & { status?: number; data?: unknown };
+  err.status = status;
+  err.data = data;
+  return err;
+}
+
 export const register = async (
   fullname: string,
   email: string,
@@ -69,8 +76,17 @@ export const getMyProfile = async () => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to fetch profile");
+      let errorData: any = null;
+      try {
+        errorData = await response.json();
+      } catch {
+        // ignore JSON parse errors
+      }
+      throw makeHttpError(
+        errorData?.message || "Failed to fetch profile",
+        response.status,
+        errorData
+      );
     }
 
     const data = await response.json();
